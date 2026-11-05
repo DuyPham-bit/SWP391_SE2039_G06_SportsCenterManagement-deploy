@@ -1,0 +1,19 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './app/App.jsx';
+import './styles/theme.css';
+import './styles/tiya-theme.css';
+
+// Gán React và ReactDOM lên window để hỗ trợ tất cả các component dùng cú pháp:
+// const { useState, useEffect } = React;
+window.React = React;
+window.ReactDOM = ReactDOM;
+
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}

@@ -1,0 +1,85 @@
+# Dependencies
+node_modules/
+Frontend/node_modules/
+jspm_packages/
+
+# Production build outputs
+Frontend/dist/
+dist/
+build/
+
+# Vite & Env
+credentials.local.json
+credentials.json
+*.local.json
+.env
+.env.*
+.env*.local
+*.env
+*.env.*
+Frontend/.env
+Frontend/.env.*
+Frontend/.env*.local
+Frontend/.env.local
+Backend/.env
+Backend/.env.*
+Backend/.env*.local
+Backend/.env.local
+docker/.env
+docker/.env.*
+!.env.example
+!Frontend/.env.example
+!Backend/.env.example
+!docker/.env.example
+
+# .NET & Visual Studio build outputs
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+Backend/**/bin/
+Backend/**/obj/
+Backend/**/.vs/
+Backend/**/TestResults/
+Backend/**/App_Data/media/
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+tmp/
+temp/
+
+# Diagnostics & local tasks
+.payment-diagnostics/
+SWP391_SE2039_G06_SportsCenterManagement_BE-feature-payment-fix/
+register-task.ps1
+update-skills.ps1
+Backend/register-task.ps1
+Backend/update-skills.ps1
+**/register-task.ps1
+**/update-skills.ps1
+docker/migration-backups/
+migration-backups/
+*.bak
+
+# Submodule git backups
+.git_backup/
+*.git_backup/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local Graphify index and extraction cache
+graphify-out/
+.vercel
+.env*
