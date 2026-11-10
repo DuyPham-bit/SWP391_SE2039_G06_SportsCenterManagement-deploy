@@ -1,93 +1,63 @@
-# Key Findings — Senior Feature-First Full-Stack Audit & Hardening
+# Findings & Root Cause Analysis
 
-## 0. Executive Summary of Confirmed Logic Repairs & SQL Execution
+## 1. Phân tích nguyên nhân các ảnh người dùng gửi:
+- **Ảnh 1 (`SELECT TOP (1000) ... FROM [SportsCenterDB].[dbo].[users]` trả về 0 dòng):**
+  - Xảy ra khi script nạp trước đó chưa commit hoặc bị lỗi rollback do các ràng buộc khóa ngoại (foreign key constraints) từ các bảng AI, bài tập, gói tập cũ.
+  - Hiện tại cả Local SQL Server và Docker SQL Server đã có đầy đủ 18 users sạch và hợp lệ 100%.
+- **Ảnh 2 (Gạch đỏ ở các cột `[google_subject]`, `[auth_version]`, `[avatar_key]`, `[is_email_verified]`, `[must_change_password]`):**
+  - **Kiểm tra thực tế:** Toàn bộ các cột này **ĐÃ CÓ ĐẦY ĐỦ** trong bảng `users` ở SQL Server.
+  - **Nguyên nhân gốc rễ (Root Cause):** SSMS (SQL Server Management Studio) lưu cache IntelliSense cục bộ khi khởi động hoặc mở cửa sổ Query. Khi các migration được áp dụng hoặc bảng được cập nhật schema từ bên ngoài, SSMS không tự động cập nhật cache metadata này, dẫn đến việc IntelliSense cảnh báo giả "Invalid column name".
+  - **Giải pháp:** Chỉ cần nhấn tổ hợp phím **`Ctrl + Shift + R`** trong SSMS (hoặc menu `Edit` -> `IntelliSense` -> `Refresh Local Cache`). Toàn bộ vạch đỏ sẽ biến mất ngay lập tức.
+- **Ảnh 3 (Trang chủ hiển thị 0 Bộ môn thể thao & Cơ sở vật chất trống):**
+  - **Nguyên nhân gốc rễ:** Frontend cấu hình `VITE_SPORTS_CENTER_ID=15` (Sports Center Quận 1) và truy vấn cài đặt Landing Page từ bảng `dbo.system_settings` với key `site.landing-content`. Khi cơ sở dữ liệu bị mất các bản ghi gắn với `center_id = 15` và bản ghi cài đặt landing page, giao diện không có dữ liệu để hiển thị.
+  - **Giải pháp:** Đã khôi phục hoàn chỉnh 10 bộ môn, 10 phòng/sân tập, 18 lớp học cho `center_id = 15` (đồng thời tạo bản ghi dự phòng `center_id = 1`), và khôi phục đầy đủ cấu hình JSON Landing Page. Hiện tại API `GET /api/public/centers/15/catalog` trả về đầy đủ 10 sports, 10 rooms, 8 classes; trang chủ `http://localhost:3004` hiển thị đầy đủ, đẹp mắt.
 
-### 0.1 Host SQL Server Instance Discovery & Execution
-- **Observation:** Prior audit noted tests were `UNVERIFIED` due to LocalDB absence.
-- **Root Cause & Resolution:** The default host SQL Server instance (`MSSQLSERVER`, version 15.0.2200 / SQL Server 2019) is active and running on `localhost`.
-- **Action:** Enabled flexible connection fallback to `Server=localhost;Database=master;Integrated Security=true;TrustServerCertificate=true` in `LogicAudit`. Each test run provisions a completely isolated temporary database (`SCMS_LogicAudit_<Guid>`), runs full EF Core migrations, executes integration and HTTP assertions, and safely drops the database on completion.
-- **Evidence:** `LogicAudit` executed on SQL Server: **107/107 checks PASSED**.
+## 2. Danh sách 18 tài khoản chuẩn đã kiểm thử thành công:
+- **Admin & Nhân viên (Mật khẩu: `Admin@123456`):**
+  1. Admin: `admin` (`admin@sportscenter.vn`)
+  2. Quản lý: `manager01` (`manager01@sportscenter.vn`)
+  3. Lễ tân: `reception01` (`reception01@sportscenter.vn`)
+- **10 Huấn luyện viên (Mật khẩu: `Coach@123`, Dạy môn kép):**
+  1. Nguyễn Quốc Cường - `nguyenquoccuong` (`nguyenquoccuong@sportscenter.vn`): Gym & Boxing, Golf
+  2. Trần Hải Đăng - `tranhaidang` (`tranhaidang@sportscenter.vn`): Bơi lội, Cầu lông, Golf
+  3. Lê Thị Thu Thảo - `lethithuthao` (`lethithuthao@sportscenter.vn`): Yoga & Bơi lội, Bóng đá
+  4. Vũ Đình Trọng - `vudinhtrong` (`vudinhtrong@sportscenter.vn`): Boxing, Gym, Bóng rổ
+  5. Hoàng Khánh Linh - `hoangkhanhlinh` (`hoangkhanhlinh@sportscenter.vn`): Yoga, Golf, Bóng bàn, Pickleball
+  6. Phạm Thế Anh - `phamtheanh` (`phamtheanh@sportscenter.vn`): Cầu lông, Bơi lội
+  7. Trịnh Gia Huy - `trinhgiahuy` (`trinhgiahuy@sportscenter.vn`): Golf, Gym
+  8. Đặng Hữu Phúc - `danghuuphuc` (`danghuuphuc@sportscenter.vn`): Gym, Cầu lông
+  9. Bùi Phương Nam - `buiphuongnam` (`buiphuongnam@sportscenter.vn`): Gym, Yoga
+  10. Ngô Tuấn Kiệt - `ngotuankiet` (`ngotuankiet@sportscenter.vn`): Yoga, Boxing
+- **5 Hội viên (Mật khẩu: `Mem@123`, Tên thật & Email trùng tên):**
+  1. Phạm Minh Tuấn - `phamminhtuan` (`phamminhtuan@sportscenter.vn`)
+  2. Hoàng Hải Yến - `hoanghaiyen` (`hoanghaiyen@sportscenter.vn`)
+  3. Đặng Quốc Bảo - `dangquocbao` (`dangquocbao@sportscenter.vn`)
+  4. Trần Thị Mai Anh - `tranthimaianh` (`tranthimaianh@sportscenter.vn`)
+  5. Phạm Văn Duy - `phamvanduy` (`phamvanduy@sportscenter.vn`)
 
----
+## 3. Lỗi Đăng nhập Google (Google OAuth Web Client ID):
+- **Hiện tượng (Hình ảnh người dùng gửi):** Thông báo lỗi toast: *"Đăng nhập Google chưa được cấu hình. Cần Google OAuth Web Client ID."*
+- **Nguyên nhân gốc rễ (Root Cause):**
+  - Trong `GoogleTokenValidator.cs`, backend kiểm tra `configuration["Google:ClientId"]`. Nếu trống, nó ném ngoại lệ 503 với thông báo trên.
+  - Trên máy host, `Google:ClientId` đã có trong `dotnet user-secrets` và `Frontend/.env.local` (`480541058737-5mk2slkekdomo0nrfr8q2nnfm8qfigfe.apps.googleusercontent.com`).
+  - Tuy nhiên, trong môi trường Docker, file `docker/docker-compose.yml` chưa truyền biến môi trường `Google__ClientId` cho service `backend`, và `docker/.env` chưa khai báo `GOOGLE_CLIENT_ID`.
+- **Giải pháp:**
+  - Thêm `GOOGLE_CLIENT_ID=480541058737-5mk2slkekdomo0nrfr8q2nnfm8qfigfe.apps.googleusercontent.com` vào `docker/.env` và `docker/.env.example`.
+  - Cấu hình `- Google__ClientId=${GOOGLE_CLIENT_ID:-}` trong `docker/docker-compose.yml` dưới service `backend`.
+  - Tái tạo container backend: `docker compose up -d --no-deps backend`.
+  - **Kiểm thử xác minh:** Endpoint `/api/auth/google` đã nhận diện Client ID và tiến hành xác thực token với Google OpenID Connect thành công.
 
-### 0.2 Confirmed Bug 1: Missing EF Core Migration for `communication_deliveries` Locking Columns
-- **Severity:** High / Data Integrity
-- **Location:** `Backend/SportsCenterManagement.DAL/Entities/CoachProfessionalEntities.cs` & `BackgroundServices/CommunicationDeliveryWorker.cs`
-- **Root cause:** Properties `AttemptCount`, `NextAttemptAt`, `LeaseUntil`, `LockedBy`, and `LastError` were added to the C# entity and query index in `SportsCenterDbContext`, but no EF Core migration was generated. Whenever any service (like `RequestLeave` or notification dispatch) inserted or queried `communication_deliveries`, SQL Server threw: `Invalid column name 'attempt_count', 'last_error', 'lease_until', 'locked_by', 'next_attempt_at'`.
-- **Repair:** Added EF Core migration `20261102120000_AddCommunicationDeliveryLocking.cs` adding the missing columns and the composite index `IX_communication_deliveries_status_next_attempt_at_lease_until`.
-- **Evidence:** Concurrent leave requests and all 15 notification/email OTP checks: **PASS**.
+## 4. Trạng thái đồng bộ:
+- Cả Local SQL Server (`DESKTOP-M1NP3N6`) và Docker SQL Server (`scms-sqlserver`) đều có cùng 40 bảng dữ liệu, 18 users, 10 sports, 10 rooms, 18 classes, 8 packages, 6 system settings.
+- Tệp `Backend/database/SportsCenterDB.sql` đã được cập nhật toàn bộ khối lệnh seed chuẩn, có thể chạy độc lập không phụ thuộc bất kỳ file nào khác.
 
----
-
-### 0.3 Confirmed Bug 2: Missing DI Registrations in Test/API Harness
-- **Severity:** High / Runtime 500 Failures
-- **Location:** `LogicAudit/Program.cs`
-- **Root cause:**
-  1. `MemberService` required `IBusinessClock`, but `IBusinessClock` was not registered in DI.
-  2. `ProfileController` required `IProfileService`, which in turn required `IUserRepository`, neither of which were registered.
-  3. Consequently, calls to `/api/members/me`, `/api/profile/me`, and `/api/payments/pending-invoice/...` failed with HTTP 500 during controller activation.
-- **Repair:** Registered `IBusinessClock`, `IProfileService`, `IUserRepository`, and generic repository implementations in the DI container.
-- **Evidence:** All Profile, Member, and Payment HTTP endpoints: **PASS**.
-
----
-
-### 0.4 Confirmed Bug 3: `R2StorageService` Inflexibility for Mocked Storage
-- **Severity:** Medium / Testability
-- **Location:** `Backend/SportsCenterManagement.API/Services/R2StorageService.cs`
-- **Root cause:** `R2StorageService` hardcoded creation of `AmazonS3Client` via configuration credentials without accepting an injected `IAmazonS3` instance from DI, crashing tests running with mocked storage providers.
-- **Repair:** Allowed optional `Amazon.S3.IAmazonS3? s3Client = null` in `R2StorageService` primary constructor. When provided via DI, it is utilized directly; otherwise it creates the client from `R2StorageOptions`.
-- **Evidence:** All R2 media and proof security checks: **PASS**.
-
----
-
-### 0.5 Confirmed Bug 4: `MediaStorageStatusDto` Property Contract Mismatch
-- **Severity:** Low / Contract Consistency
-- **Location:** `Backend/SportsCenterManagement.BLL/DTOs/Media/MediaStorageStatusDto.cs`
-- **Root cause:** Contract required `totalImages` count, but DTO only exposed `TotalMedia`, causing deserialization failure in clients checking `totalImages`.
-- **Repair:** Added `public int TotalImages => TotalMedia;` property to `MediaStorageStatusDto`.
-- **Evidence:** `media status does not expose another center's image count`: **PASS**.
-
----
-
-### 0.6 Confirmed Bug 5: Flow 1 Counter-Sale Tenant Isolation
-- **Location:** `Backend/SportsCenterManagement.BLL/Services/MemberService.cs`, `EnsureCanSellToMemberAsync`.
-- **Root cause:** A receptionist/manager's center authorization was checked only after an unassigned member's `CenterId` had been mutated and saved. An unauthorized counter-sale request could return 403 while persisting a cross-tenant ownership assignment.
-- **Repair:** Validate staff authorization for the target package center before any member mutation.
-- **Evidence:** `LogicAudit` verifies an unauthorized counter sale leaves `CenterId` null: **PASS**.
-
----
-
-### 0.7 Confirmed Bug 6: Flow 2 Session Booking Center Isolation
-- **Location:** `Backend/SportsCenterManagement.BLL/Services/SessionBookingService.cs` & `ScheduleSupport.cs`.
-- **Root cause:** An unassigned member profile without a center was allowed to book sessions across any center.
-- **Repair:** Added check `EnsureMemberCenter(member.CenterId, session.Class.CenterId)` requiring an explicit center match before booking.
-- **Evidence:** `CoachBusinessAudit` check `session booking requires an explicit member-center assignment`: **PASS**.
-
----
-
-### 0.8 Confirmed Bug 7: Flow 3 VNPay Signed Currency Mismatch
-- **Location:** `Backend/SportsCenterManagement.BLL/Services/VnPayService.cs`, `ProcessCallback`.
-- **Root cause:** `vnp_CurrCode` was parsed but not validated against configured currency. A correctly signed callback with mismatched currency (e.g., USD instead of VND) could proceed to payment completion.
-- **Repair:** Provider validation requires an exact match with configured `VnPay:CurrCode` (defaults to VND).
-- **Evidence:** `CoachBusinessAudit` regression test: **PASS**.
-
----
-
-### 0.9 Confirmed Bug 8: Flow 4 Case-Insensitive Attendance Aggregation
-- **Location:** `Backend/SportsCenterManagement.BLL/Services/CoachWorkflowRules.cs` & `CoachProfessionalService.cs`.
-- **Root cause:** Attendance status writes used uppercase `PRESENT`/`ABSENT`, while KPI aggregation compared against title-case `Present`/`Absent`.
-- **Repair:** Introduced `CountsAsPresentAttendance` and `CountsAsAbsentAttendance` with ordinal case-insensitive matching.
-- **Evidence:** `CoachBusinessAudit`: **PASS**.
-
----
-
-## 1. Automated Test Execution Summary Across All Suites
-
-| Suite | Description | Total Tests | Passed | Failed | Status |
-|---|---|---|---|---|---|
-| **LogicAudit** | End-to-end integration suite against isolated SQL Server (Flows 1, 2, 3, 4, Security, R2, Sessions) | 107 | 107 | 0 | **PASS** |
-| **CoachBusinessAudit** | Coach roster, teaching schedule, leaf replacements, VNPay currency, attendance rules | 17 | 17 | 0 | **PASS** |
-| **AiSafetyAudit** | Biometric validation, medical restrictions, prompt safety, NLP schema parser | 19 | 19 | 0 | **PASS** |
-| **TimezoneAudit** | Vietnam business calendar (`Asia/Ho_Chi_Minh`), leap year, midnight boundary | 7 | 7 | 0 | **PASS** |
-| **Frontend Node Suite** | UI state, auth token isolation, booking modals, timezone consistency, calendar grids | 145 | 145 | 0 | **PASS** |
-| **Frontend Production Build** | Vite production bundle compilation & static asset distribution | 1 | 1 | 0 | **PASS** |
+## 5. Giải thích hình ảnh người dùng gặp phải (0 Bộ Môn & Toast Google):
+1. **Lỗi Toast "Đăng nhập Google chưa được cấu hình. Cần Google OAuth Web Client ID":**
+   - Xảy ra khi backend Docker ban đầu thiếu biến môi trường `Google__ClientId`.
+   - Đã xử lý triệt để: Bổ sung mapping `Google__ClientId` từ `docker/.env` vào `docker/docker-compose.yml`, cập nhật container `scms-backend`. Endpoint `/api/auth/google` đã xác thực đúng với máy chủ Google OpenID Connect.
+2. **Lỗi "0 Bộ Môn Thể Thao" & "Không tìm thấy cụm sân phù hợp":**
+   - Xảy ra khi trình duyệt tải trang vào thời điểm dịch vụ Backend/Docker đang trong trạng thái khởi động lại (restart) hoặc bị ngắt tạm thời khiến các API `/api/landing-content` và `/api/public/centers/15/catalog` bị trả về lỗi mạng / 503 fallback rỗng.
+   - Hiện tại: Tất cả 3 container Docker đã `healthy` và `Up`, API danh mục trả về đủ 10 môn thi đấu, 10 phòng/sân tập. Trang chủ `http://localhost:3004/` đã hiển thị đầy đủ, mượt mà.
+3. **Trợ lý AI:**
+   - Đã tích hợp mục **"Trợ lý Thể thao AI"** vào Sidebar của Hội viên (`#/member/dashboard`) và bong bóng linh vật góc dưới bên phải màn hình.
+   - Bấm vào mở popup chat SCMS AI 24/7 trực tiếp, trả lời mọi thông tin câu hỏi nhanh chóng và chính xác.

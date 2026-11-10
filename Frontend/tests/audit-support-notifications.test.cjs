@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { apiSource } = require('./helpers/apiSources.cjs');
 const vm = require('node:vm');
 const { test } = require('node:test');
 
@@ -10,8 +11,8 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('audit API and manager UI do not expose before/after values', () => {
   const response = read('Backend/SportsCenterManagement.BLL/DTOs/Audit/Responses.cs');
   const query = read('Backend/SportsCenterManagement.BLL/Services/AuditLogService.cs');
-  const ui = read('Frontend/src/features/manager/AuditLogs.jsx');
-  const api = read('Frontend/src/services/backendApi.js');
+  const ui = read('Frontend/src/pages/audit-logs/ui/AuditLogs.jsx');
+  const api = apiSource();
 
   assert.doesNotMatch(response, /OldValues|NewValues/);
   assert.doesNotMatch(query, /log\.OldValues|log\.NewValues/);
@@ -22,8 +23,8 @@ test('audit API and manager UI do not expose before/after values', () => {
 
 test('manager can process support tickets but cannot create a ticket for a requester', () => {
   const controller = read('Backend/SportsCenterManagement.API/Controllers/SupportRequestsController.cs');
-  const supportUi = read('Frontend/src/features/receptionist/SupportRequests.jsx');
-  const managerUi = read('Frontend/src/features/manager/ManagerSupportCommunications.jsx');
+  const supportUi = read('Frontend/src/widgets/support-inbox/ui/SupportRequests.jsx');
+  const managerUi = read('Frontend/src/pages/manager-support/ui/ManagerSupportCommunications.jsx');
 
   assert.match(controller, /\[Authorize\(Roles = "RECEPTIONIST"\)\]\s*public async Task<ActionResult<SupportDetails>> Create/);
   assert.match(supportUi, /currentUser\?\.role[\s\S]*=== 'RECEPTIONIST'/);
@@ -52,7 +53,7 @@ test('center notification backend rebuilds a safe recipient list and records aud
 });
 
 test('frontend sends either all-center or selected-role notification contract', async () => {
-  const source = read('Frontend/src/services/backendApi.js')
+  const source = apiSource()
     .replace(/^import .+;\r?\n/gm, '')
     .replaceAll('export const ', 'const ')
     .replaceAll('import.meta.env', '({})');
@@ -83,4 +84,36 @@ test('frontend sends either all-center or selected-role notification contract', 
   });
   assert.deepEqual(Array.from(calls[1].options.body.targetRoles), []);
   assert.equal(calls[1].options.body.sendToAll, true);
+});
+
+test('parseNotificationDetails extracts date and class name from reminder and booking messages', () => {
+  const { parseNotificationDetails, notificationTarget } = require('../src/features/notifications/lib/notificationNavigation.js');
+
+  const reminder = {
+    title: 'Nhắc lịch: Ca học sắp bắt đầu',
+    content: 'Bạn có ca học bơi cơ bản ngày 22/10/2026, lúc 00:00 - 01:00, tại Bể bơi Olympic 50m. Ca học sẽ bắt đầu trong vòng 1 tiếng. Vui lòng đến đúng giờ.'
+  };
+  const parsed1 = parseNotificationDetails(reminder);
+  assert.equal(parsed1.isoDate, '2026-10-22');
+  assert.equal(parsed1.className, 'bơi cơ bản');
+  const target1 = notificationTarget(reminder, 'MEMBER');
+  assert.match(target1, /#\/member\/schedule\?date=2026-10-22&search=b%C6%A1i\+c%C6%A1\+b%E1%BA%A3n/);
+
+  const booking = {
+    title: 'Đặt lớp thành công',
+    content: 'Bạn đã được xác nhận chỗ học: bơi cơ bản, ngày 22/10/2026 lúc 00:00.'
+  };
+  const parsed2 = parseNotificationDetails(booking);
+  assert.equal(parsed2.isoDate, '2026-10-22');
+  assert.equal(parsed2.className, 'bơi cơ bản');
+
+  const cancellation = {
+    title: 'Đã hủy đặt lớp',
+    content: 'Chỗ học của bạn đã được hủy: Bơi sải Kỹ thuật Olympic K01, ngày 23/10/2026 lúc 07:00.'
+  };
+  const parsed3 = parseNotificationDetails(cancellation);
+  assert.equal(parsed3.isoDate, '2026-10-23');
+  assert.equal(parsed3.className, 'Bơi sải Kỹ thuật Olympic K01');
+  const target3 = notificationTarget(cancellation, 'MEMBER');
+  assert.match(target3, /#\/member\/bookings\?search=/);
 });

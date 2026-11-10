@@ -34,13 +34,13 @@ function loadService(apiRequest, { blockedStorage = false, popupBlocked = false 
       module, window, localStorage, URL, URLSearchParams, console,
       sessionStorage: { getItem: key => previewStore.get(key) ?? null },
       CustomEvent: class { constructor(type, { detail }) { this.type = type; this.detail = detail; } },
-      require: id => id === './http.js' ? { apiRequest } : load(path.resolve(path.dirname(file), id))
+      require: id => id.endsWith('/http.js') ? { apiRequest } : load(path.resolve(path.dirname(file), id))
     });
     vm.runInContext(transformSync(fs.readFileSync(file, 'utf8'), { format: 'cjs' }).code, context);
     modules.set(file, module.exports);
     return module.exports;
   }
-  return { api: load(path.join(__dirname, '../src/services/landingContentService.js')), window, store, events, previewStore, previewWindow };
+  return { api: load(path.join(__dirname, '../src/entities/landing-content/api/landingContentService.js')), window, store, events, previewStore, previewWindow };
 }
 
 test('publishing goes through the API and another browser reads the shared content', async () => {
@@ -128,3 +128,54 @@ test('legacy local content is available as a draft but never overrides the publi
   assert.notEqual(result.content.heroBanner.title, 'Old local draft');
   assert.equal(fixture.api.getLegacyLandingContent().heroBanner.title, 'Old local draft');
 });
+
+test('landing carousel controller wraps at edges, calculates drag threshold, and pauses autoplay on interaction', () => {
+  const file = path.join(__dirname, '../src/pages/landing/lib/carouselController.js');
+  const module = { exports: {} };
+  vm.runInContext(transformSync(fs.readFileSync(file, 'utf8'), { format: 'cjs' }).code, vm.createContext({ module, exports: module.exports, Object, Math }));
+  const {
+    computeNextCarouselIndex,
+    shouldAutoAdvanceCarousel,
+    computeDragScrollDelta
+  } = module.exports;
+
+  // Normal step forward and backward
+  assert.equal(computeNextCarouselIndex({ currentIndex: 0, itemCount: 10, scrollLeft: 0, maxScroll: 2400, direction: 1 }), 1);
+  assert.equal(computeNextCarouselIndex({ currentIndex: 3, itemCount: 10, scrollLeft: 900, maxScroll: 2400, direction: -1 }), 2);
+
+  // Wrap around to 0 when scroll track is already at right edge (maxScroll) even if currentIndex < itemCount - 1
+  assert.equal(computeNextCarouselIndex({ currentIndex: 7, itemCount: 10, scrollLeft: 2390, maxScroll: 2400, direction: 1 }), 0);
+  assert.equal(computeNextCarouselIndex({ currentIndex: 9, itemCount: 10, scrollLeft: 2400, maxScroll: 2400, direction: 1 }), 0);
+
+  // Wrap around to last item when pressing Prev at start
+  assert.equal(computeNextCarouselIndex({ currentIndex: 0, itemCount: 10, scrollLeft: 0, maxScroll: 2400, direction: -1 }), 9);
+
+  // Drag scroll delta and accidental click prevention threshold
+  assert.deepEqual({ ...computeDragScrollDelta({ startX: 500, currentX: 497, startScrollLeft: 200 }) }, {
+    scrollLeft: 203,
+    didDrag: false
+  });
+  assert.deepEqual({ ...computeDragScrollDelta({ startX: 500, currentX: 380, startScrollLeft: 200 }) }, {
+    scrollLeft: 320,
+    didDrag: true
+  });
+
+  // Autoplay conditions
+  assert.equal(shouldAutoAdvanceCarousel({
+    itemCount: 5,
+    isAutoPlayEnabled: true,
+    isHovered: false,
+    isDragging: false,
+    isFocused: false,
+    isModalOpen: false,
+    isDocumentHidden: false,
+    reducedMotion: false
+  }), true);
+
+  assert.equal(shouldAutoAdvanceCarousel({ itemCount: 1, isAutoPlayEnabled: true }), false);
+  assert.equal(shouldAutoAdvanceCarousel({ itemCount: 5, isAutoPlayEnabled: true, isHovered: true }), false);
+  assert.equal(shouldAutoAdvanceCarousel({ itemCount: 5, isAutoPlayEnabled: true, isDragging: true }), false);
+  assert.equal(shouldAutoAdvanceCarousel({ itemCount: 5, isAutoPlayEnabled: true, isModalOpen: true }), false);
+  assert.equal(shouldAutoAdvanceCarousel({ itemCount: 5, isAutoPlayEnabled: true, reducedMotion: true }), false);
+});
+

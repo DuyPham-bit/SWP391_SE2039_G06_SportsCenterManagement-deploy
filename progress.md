@@ -1,39 +1,24 @@
-# Progress: Olympic Sports Arena Visual Identity, Production Hardening & Full-Flow Verification
+# Progress Tracking
 
-## Overall Status: COMPLETE & VERIFIED
-
-### Milestone Breakdown & Verification Status
-
-1. **Host SQL Server Integration & Isolation:**
-   - Identified running SQL Server 2019 instance (`MSSQLSERVER`) on `localhost`.
-   - Updated `LogicAudit` harness to dynamically target `localhost` with Windows Integrated Security.
-   - Every execution creates a fresh temporary database (`SCMS_LogicAudit_<Guid>`), executes all EF Core migrations, runs tests, and terminates with complete database teardown.
-
-2. **Flow 1: User & Membership Management:**
-   - **Completed & Verified:** Registration, login, password reset/change lifecycle, HttpOnly cookie tab isolation, OTP rate limiting, staff authorization before unowned member mutation, subscription effective dates and scheduling.
-   - **Automated Evidence:** `LogicAudit` (checks 1-13, 30, 39-83) PASS, `Frontend` suite (auth/tab isolation/permission tests) PASS.
-
-3. **Flow 2: Class Booking & Schedule Management:**
-   - **Completed & Verified:** Class and schedule queries with Vietnam business dates (`Asia/Ho_Chi_Minh`), room name inclusion, pagination guards, serializable transactions preventing double booking/overbooking, concurrent leave requests with replacement coach verification, member center assignment enforcement.
-   - **Automated Evidence:** `LogicAudit` (checks 14-16, 25-34) PASS, `CoachBusinessAudit` (17/17) PASS, `Frontend` scheduling & calendar suite PASS.
-
-4. **Flow 3: Payment & Report Management:**
-   - **Completed & Verified:** Server-side price validation, currency verification on VNPay signed callbacks, payment idempotency, refund state machine atomicity, center-scoped revenue reporting without double counting, gateway refund reconciliation.
-   - **Automated Evidence:** `LogicAudit` (checks 4-11, 20-24, 35-38) PASS, `CoachBusinessAudit` PASS, `Frontend` checkout/payment suite PASS.
-
-5. **Flow 4: Training & Attendance Management:**
-   - **Completed & Verified:** Coach professional hub, attendance status case-insensitivity (`PRESENT`, `LATE`, `ABSENT`), health records, exercise definitions, compensation policies, replacement coach specialization matching, missing EF Core migration for delivery locking columns added.
-   - **Automated Evidence:** `LogicAudit` (checks 14-18, 25-27) PASS, `CoachBusinessAudit` PASS, `Frontend` coach dashboard suite PASS.
-
-6. **Flow 5 & 6: AI Workout Recommendation & AI Assistant:**
-   - **Completed & Verified:** Biometric safeguards (underweight/overweight override), medical pain condition restrictions, prompt safety guards, Medical NLP schema parsing, multi-account and center isolation in frontend chat popup.
-   - **Automated Evidence:** `AiSafetyAudit` (19/19) PASS, `Frontend` AI suite PASS.
-
-7. **Full-Stack Test Execution Summary:**
-   - `LogicAudit` (SQL Server): 107/107 PASS (100%).
-   - `CoachBusinessAudit`: 17/17 PASS (100%).
-   - `AiSafetyAudit`: 19/19 PASS (100%).
-   - `TimezoneAudit`: 7/7 PASS (100%).
-   - Frontend Suite: 145/145 PASS (100%).
-   - Backend Solution Build: 0 warnings, 0 errors.
-   - Frontend Production Build: 0 errors, bundle synced to `Backend/SportsCenterManagement.API/wwwroot`.
+- [x] Khôi phục toàn bộ dữ liệu gốc từ file backup cũ vào `SportsCenterDB`.
+- [x] Bổ sung đầy đủ 10 môn thể thao và 10 sân tập, 18 lớp học cho `center_id = 15`.
+- [x] Khôi phục cấu hình Landing Page (`dbo.system_settings` key `site.landing-content`).
+- [x] Cập nhật 10 HLV dạy môn kép, email trùng tên thật, mật khẩu `Coach@123`.
+- [x] Cập nhật 5 Hội viên tên thật, email trùng tên thật, mật khẩu `Mem@123`.
+- [x] Cập nhật Admin, Quản lý, Lễ tân với mật khẩu `Admin@123456`.
+- [x] Xóa sạch các tài khoản rác cũ trong `dbo.users`.
+- [x] Đồng bộ dữ liệu sạch sang Docker SQL Server container (`scms-sqlserver`).
+- [x] Đồng bộ dữ liệu sạch sang Local SQL Server (`DESKTOP-M1NP3N6`).
+- [x] Tích hợp toàn bộ script schema + seed data vào `Backend/database/SportsCenterDB.sql`.
+- [x] Xóa database tạm `SportsCenterDB_Original` trên Local SQL Server.
+- [x] Kiểm thử đăng nhập tự động qua API Backend (`/api/auth/login`) thành công 18/18 tài khoản.
+- [x] Kiểm thử API danh mục trang chủ (`/api/public/centers/15/catalog`) trả về 10 môn, 10 sân, 8 lớp.
+- [x] Kiểm thử Frontend Nginx container (`http://localhost:3004`) trả về HTTP 200 OK.
+- [x] Đã cấu hình `GOOGLE_CLIENT_ID` vào `docker/.env` và `Google__ClientId` vào `docker/docker-compose.yml`.
+- [x] Đã khởi động lại container backend và xác thực API Google OAuth hoạt động bình thường (không còn lỗi 503 cấu hình).
+- [x] Đã bổ sung mục "Trợ lý Thể thao AI" vào Sidebar Hội viên (`MEMBER`) kèm linh vật nổi ở góc dưới phải.
+- [x] Đã xác minh hiển thị thực tế: Trang chủ hiển thị chuẩn 10 Bộ môn thể thao, 10 Cụm cơ sở vật chất, và popup Trợ lý AI hoạt động trơn tru.
+- [x] **Xử lý yêu cầu lọc môn học**: Thêm hàm chuẩn `filterVisibleSports` vào `enrollmentView.js` và tích hợp vào hook `useMemberEnrollment.js`.
+- [x] **TDD Unit Tests**: Bổ sung test case trong `member-enrollment.test.cjs` kiểm thử trường hợp hội viên đã đăng ký môn (chỉ hiển thị môn đang học) và hội viên mới (hiển thị đủ danh mục để chọn môn). Toàn bộ 157 unit tests đều pass 100%.
+- [x] **Production Build & Re-deploy**: Chạy `vite build` thành công, build lại Docker image `docker-frontend` và recreate container `scms-frontend`.
+- [x] **Xác thực kết quả thực tế**: Endpoint `http://localhost:3004` đã cập nhật bản build mới nhất, tài khoản hội viên đang học Boxing & Võ thuật sẽ chỉ thấy môn Boxing, các môn chưa đăng ký khác đã được ẩn hoàn toàn.
